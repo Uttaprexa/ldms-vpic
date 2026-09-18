@@ -2,7 +2,7 @@
 
 Setting up [LDMS](https://github.com/ovis-hpc/ovis) (a lightweight HPC
 monitoring tool) to watch a real application's ([VPIC](https://github.com/lanl/vpic))
-memory usage — first on one machine, then across two separate machines
+memory usage, first on one machine, then across two separate machines
 in AWS.
 
 ## Table of Contents
@@ -17,7 +17,7 @@ in AWS.
 
 ## Goal
 
-Three questions this project set out to answer:
+Three questions:
 
 1. Does LDMS correctly detect an application's memory usage?
 2. Does that effect scale with a bigger workload?
@@ -25,7 +25,7 @@ Three questions this project set out to answer:
 
 ## Instance Setup
 
-Only one instance was configured by hand through the AWS EC2 console —
+Only one instance was configured by hand through the AWS EC2 console,
 **Instance A**. The second instance (the aggregator) was launched via a
 single automated script command
 (`NUM_SAMPLERS=0 ./launch_instances.sh`, from the
@@ -33,7 +33,7 @@ single automated script command
 repo), which handled the AMI selection, security group creation, and IAM
 permissions automatically in the background.
 
-### Instance A — `ldms-vpic` (Sampler + VPIC host)
+### Instance A: `ldms-vpic` (Sampler + VPIC host)
 
 | Setting | Value |
 |---|---|
@@ -44,9 +44,9 @@ permissions automatically in the background.
 | Private IP | `172.31.18.232` |
 
 > **Note:** `t3.micro` (1 GiB RAM) was tried first and was too small to
-> build LDMS from source — upgraded to `t2/t3.medium`.
+> build LDMS from source, upgraded to `t2/t3.medium`.
 
-### Instance B — `aggregator` (launched via `ldms-cloud` automation)
+### Instance B: `aggregator` (launched via `ldms-cloud` automation)
 
 | Setting | Value |
 |---|---|
@@ -71,7 +71,7 @@ sudo apt-get install -y \
 ```
 
 > **Note:** On Ubuntu 24.04, `python3.10` is not available in the default
-> repos (24.04 ships Python 3.12) — the system Python was used instead.
+> repos (24.04 ships Python 3.12), the system Python was used instead.
 
 ### Build LDMS (OVIS)
 
@@ -172,7 +172,7 @@ EOF
 chmod +x ~/poll_meminfo.sh
 ```
 
-### Run 1 — Default VPIC Problem Size
+### Run 1: Default VPIC Problem Size
 
 ```bash
 nohup ~/poll_meminfo.sh > /dev/null 2>&1 &
@@ -194,7 +194,7 @@ grep -E "MemFree|MemAvailable|===" ~/meminfo_timeseries.txt
 Drop of **~30–34 MB**. Runtime: ~13 seconds, 484 simulation steps. Real
 signal, but modest.
 
-### Run 2 — Scaled-Up Problem Size (Stronger Signal)
+### Run 2: Scaled-Up Problem Size (Stronger Signal)
 
 Doubled the simulation grid resolution to force a bigger memory
 footprint:
@@ -236,7 +236,7 @@ grep -E "MemFree|MemAvailable|===" ~/meminfo_timeseries_v2.txt
 | Minimum during VPIC | ~148,728 |
 | After VPIC | ~377,000+ (recovering) |
 
-Drop of **~726 MB** — roughly 6x larger than Run 1, matching the 4x
+Drop of **~726 MB** roughly 6x larger than Run 1, matching the 4x
 bigger grid/particle count. Runtime scaled to ~80 seconds (~6x longer).
 
 > **Conclusion:** LDMS clearly detects VPIC's memory usage, and the
@@ -247,7 +247,7 @@ bigger grid/particle count. Runtime scaled to ~80 seconds (~6x longer).
 **Purpose:** get a sampler (Instance A) and an aggregator (Instance B)
 running on separate cloud computers to talk to each other.
 
-### Attempt 1 — The "Advertiser" Method (Failed — Crash Bug)
+### Attempt 1: The "Advertiser" Method (Failed - Crash Bug)
 
 LDMS's newer peer-discovery mechanism lets the sampler "advertise"
 itself to the aggregator:
@@ -282,12 +282,12 @@ This happened consistently, even with:
 > **Conclusion:** this is a genuine bug in LDMS's advertiser/peer-discovery
 > code (`ldmsd_peer_daemon_advertisement`), not a configuration mistake.
 
-### Attempt 2 — The Older "Static" Method (Success)
+### Attempt 2: The Older "Static" Method (Success)
 
 Instead of the sampler advertising itself, the aggregator directly dials
 the sampler using `prdcr_add`:
 
-**On the sampler (Instance A)** — simplified, no advertiser at all:
+**On the sampler (Instance A)**: simplified, no advertiser at all:
 
 ```bash
 cat > ~/samplerd-static.conf << 'EOF'
@@ -300,7 +300,7 @@ source ~/set-ldms-env.sh
 ldmsd -x sock:10444 -c ~/samplerd-static.conf -l /tmp/samplerd-static.log -v INFO -m 1g &
 ```
 
-**On the aggregator (Instance B)** — static producer config:
+**On the aggregator (Instance B)**: static producer config:
 
 ```bash
 cat > ~/agg-static.conf << 'EOF'
@@ -336,7 +336,7 @@ aws ec2 authorize-security-group-ingress \
   --cidr 172.31.18.232/32   # sampler's IP
 ```
 
-### Final Verification — It Worked
+### Final Verification: It Worked
 
 After the firewall fix, restarted the aggregator and checked directly:
 
@@ -352,7 +352,7 @@ meminfo   localhost/meminfo     CR     ...
 Total Sets: 1
 ```
 
-`CR` = **C**ached, **R**emote — confirming the aggregator successfully
+`CR` = **C**ached, **R**emote confirming the aggregator successfully
 pulled the metric set from the sampler across the network, on two
 separate real EC2 instances, with **no crash**.
 
@@ -360,25 +360,19 @@ separate real EC2 instances, with **no crash**.
 
 | Question | Result |
 |---|---|
-| Does LDMS detect an app's real memory usage? | ✅ Yes — confirmed locally with VPIC |
-| Does the effect scale with workload size? | ✅ Yes — 4x bigger problem → ~6x bigger memory drop |
-| Can two separate cloud computers connect for monitoring? | ✅ Yes — using the `prdcr_add` static method |
-| Does the newer "advertiser" method work? | ❌ No — confirmed crash bug |
+| Does LDMS detect an app's real memory usage? |  Yes confirmed locally with VPIC |
+| Does the effect scale with workload size? |  Yes 4x bigger problem → ~6x bigger memory drop |
+| Can two separate cloud computers connect for monitoring? |  Yes using the `prdcr_add` static method |
+| Does the newer "advertiser" method work? |  No confirmed crash bug |
 
 ## Key Takeaways
 
-- The core monitoring pipeline works end-to-end — app runs, LDMS
+- The core monitoring pipeline works end-to-end, app runs, LDMS
   detects the memory impact, data is collectible.
-- **Avoid LDMS's `advertiser` feature for now** — it has a real,
+- **Avoid LDMS's `advertiser` feature for now**, it has a real,
   reproducible crash bug in the current build. Use the older `prdcr_add`
   method instead, which is fully proven working.
 - Most "failures" along the way were infrastructure issues (AMI/OS
   mismatches, missing dependencies, firewall rules) rather than problems
-  with LDMS or VPIC themselves — worth remembering for future setups on
+  with LDMS or VPIC themselves, worth remembering for future setups on
   fresh instances.
-
-## Suggested Next Step
-
-Combine everything into one end-to-end test: run VPIC on the sampler
-instance while the aggregator (on a separate instance) collects its
-memory data live, using the proven `prdcr_add` method.
