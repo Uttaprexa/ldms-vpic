@@ -17,7 +17,7 @@ in AWS.
 
 ## Goal
 
-Three questions this project set out to answer:
+Three questions:
 
 1. Does LDMS correctly detect an application's memory usage?
 2. Does that effect scale with a bigger workload?
