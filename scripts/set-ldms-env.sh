@@ -1,0 +1,10 @@
+#!/bin/sh
+export LDMS_INSTALL_PATH=/home/ubuntu/ovis/build
+export LD_LIBRARY_PATH=$LDMS_INSTALL_PATH/lib/:$LD_LIBRARY_PATH
+export LDMSD_PLUGIN_LIBPATH=$LDMS_INSTALL_PATH/lib/ovis-ldms
+export ZAP_LIBPATH=$LDMS_INSTALL_PATH/lib/ovis-ldms
+export PATH=$LDMS_INSTALL_PATH/sbin:$LDMS_INSTALL_PATH/bin:$PATH
+export COMPONENT_ID="1"
+export SAMPLE_INTERVAL="1000000"
+export SAMPLE_OFFSET="0"
+export HOSTNAME="localhost"
